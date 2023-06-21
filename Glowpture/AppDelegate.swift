@@ -5,12 +5,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     
     static func getActiveWindow() -> CGRect? {
-//        let windowListInfo = (CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]]) ?? []
-        let windowListInfo = (CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]]) ?? []
-
+        // Get a list of all windows.
+        let windowListInfo = (CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]]) ?? []
         
+        let activeApp = NSWorkspace.shared.frontmostApplication
+        let activeAppName = activeApp?.localizedName
+
         for windowInfo in windowListInfo {
-            let windowName = windowInfo[kCGWindowName as String] as? String
+            let windowOwnerName = windowInfo[kCGWindowOwnerName as String] as? String
             let windowNumber = windowInfo[kCGWindowNumber as String] as? Int
             var bounds = CGRect(dictionaryRepresentation: windowInfo[kCGWindowBounds as String] as! CFDictionary)
             
@@ -20,15 +22,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 bounds = CGRect(x: bound.minX, y: screenHeight - bound.minY - bound.height, width: bound.width, height: bound.height)
             }
             
-            // If the window is not minimized and is not the application's own window, it's the window we want.
-            if windowInfo[kCGWindowLayer as String] as? Int == 0 && windowName != nil {
+            // If the window is not minimized, and it's the window of the active application, it's the window we want.
+            if windowInfo[kCGWindowLayer as String] as? Int == 0 && windowOwnerName == activeAppName {
                 return bounds
             }
         }
         
         return nil
     }
-    
+
     var highlightWindow: HighlightWindow?
     var mouseEventMonitor: Any?
     var appEventMonitor: Any?
@@ -48,7 +50,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Create the highlight window once
         highlightWindow = HighlightWindow(contentRect: CGRect.zero)
         highlightWindow?.contentView = BorderView()  // This references BorderView.swift
-        
+
+        // Set the window level to .screenSaver
+        highlightWindow?.level = NSWindow.Level.screenSaver
+//        highlightWindow?.level = NSWindow.Level.floating
+
         // Create a timer that updates the highlight every 0.1 seconds.
         Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             self.updateHighlight()
@@ -68,14 +74,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.updateHighlight()
         }
     }
-    
+
     func applicationWillTerminate(_ aNotification: Notification) {
         // Insert code here to tear down your application
     }
 
     func applicationWillResignActive(_ aNotification: Notification) {
         // Hide the highlight when our application loses focus.
-        highlightWindow?.orderOut(self)
+         highlightWindow?.orderOut(self)
     }
     
     func updateHighlight() {
