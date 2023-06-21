@@ -5,9 +5,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     
     static func getActiveWindow() -> CGRect? {
-        // Get a list of all windows.
-        let windowListInfo = (CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]]) ?? []
-            
+//        let windowListInfo = (CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]]) ?? []
+        let windowListInfo = (CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]]) ?? []
+
+        
         for windowInfo in windowListInfo {
             let windowName = windowInfo[kCGWindowName as String] as? String
             let windowNumber = windowInfo[kCGWindowNumber as String] as? Int
@@ -19,7 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 bounds = CGRect(x: bound.minX, y: screenHeight - bound.minY - bound.height, width: bound.width, height: bound.height)
             }
             
-            // If the window is not minimized, it's the window we want.
+            // If the window is not minimized and is not the application's own window, it's the window we want.
             if windowInfo[kCGWindowLayer as String] as? Int == 0 && windowName != nil {
                 return bounds
             }
@@ -31,10 +32,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var highlightWindow: HighlightWindow?
     var mouseEventMonitor: Any?
     var appEventMonitor: Any?
+    
+    func applicationDidBecomeActive(_ aNotification: Notification) {
+        // Show the highlight when our application becomes active.
+        highlightWindow?.orderFrontRegardless()
 
+        // Delay the call to updateHighlight() by 0.1 seconds to give the application a chance to become active.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.updateHighlight()
+        }
+    }
+    
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         NSApp.activate(ignoringOtherApps: true)
-
+        // Create the highlight window once
+        highlightWindow = HighlightWindow(contentRect: CGRect.zero)
+        highlightWindow?.contentView = BorderView()  // This references BorderView.swift
+        
         // Create a timer that updates the highlight every 0.1 seconds.
         Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             self.updateHighlight()
@@ -54,29 +68,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.updateHighlight()
         }
     }
-
+    
     func applicationWillTerminate(_ aNotification: Notification) {
         // Insert code here to tear down your application
     }
 
     func applicationWillResignActive(_ aNotification: Notification) {
         // Hide the highlight when our application loses focus.
-        highlightWindow = nil
+        highlightWindow?.orderOut(self)
     }
-
+    
     func updateHighlight() {
         if let bounds = AppDelegate.getActiveWindow() {
             print("Active window detected with bounds: \(bounds)")
-            if highlightWindow == nil {
-                highlightWindow = HighlightWindow(contentRect: bounds)
-                highlightWindow?.contentView = BorderView()  // This references BorderView.swift
-            } else {
-                highlightWindow?.setFrame(bounds, display: true)
-            }
+            highlightWindow?.setFrame(bounds, display: true)
             highlightWindow?.orderFrontRegardless()
         } else {
             print("No active window detected")
-            highlightWindow = nil
+            highlightWindow?.orderOut(self)
         }
     }
 
